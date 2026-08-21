@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel admina - Ankieta G4</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+  <!-- LOGOWANIE -->
+  <div class="card" id="loginView">
+    <h1>Panel admina G4</h1>
+    <p class="subtitle">Zaloguj się, żeby zarządzać kodami i zgłoszeniami.</p>
+    <label for="emailInput">E-mail</label>
+    <input type="text" id="emailInput" placeholder="admin@przyklad.pl">
+    <label for="passInput">Hasło</label>
+    <input type="password" id="passInput">
+    <button id="loginBtn">Zaloguj</button>
+    <div id="loginMsg"></div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="card wide" id="dashboardView" style="display:none;">
+    <div class="top-bar">
+      <h1>Panel admina G4</h1>
+      <button id="logoutBtn" class="secondary">Wyloguj</button>
+    </div>
+
+    <div class="tabs">
+      <button id="tabCodesBtn" class="active">Kody i QR</button>
+      <button id="tabSubmissionsBtn">Zgłoszenia</button>
+    </div>
+
+    <!-- ZAKŁADKA: KODY -->
+    <div id="codesView">
+      <button id="generateBtn">➕ Wygeneruj nowy kod</button>
+      <div id="codesMsg"></div>
+      <div class="qr-grid" id="qrGrid"></div>
+    </div>
+
+    <!-- ZAKŁADKA: ZGŁOSZENIA -->
+    <div id="submissionsView" style="display:none;">
+      <table>
+        <thead>
+          <tr><th>Kod</th><th>Data</th><th>Decyzja</th><th>Akcje</th></tr>
+        </thead>
+        <tbody id="submissionsBody"></tbody>
+      </table>
+      <div id="answersDetail"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="/supabase-config.js"></script>
+  <script>
+    const loginView = document.getElementById('loginView');
+    const dashboardView = document.getElementById('dashboardView');
+    const loginMsg = document.getElementById('loginMsg');
+    const codesMsg = document.getElementById('codesMsg');
+    let questionsCache = null;
+
+    function showLoginMsg(text, type) {
+      loginMsg.innerHTML = `<div class="msg ${type}">${text}</div>`;
+    }
+
+    // --- AUTH ---
+    async function checkSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        showDashboard();
+      } else {
+        loginView.style.display = 'block';
+        dashboardView.style.display = 'none';
+      }
+    }
+
+    document.getElementById('loginBtn').addEventListener('click', async () => {
+      const email = document.getElementById('emailInput').value.trim();
+      const password = document.getElementById('passInput').value;
+      showLoginMsg('Logowanie...', 'info');
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        showLoginMsg('Błędny e-mail lub hasło.', 'error');
+        return;
+      }
+      showDashboard();
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await supabase.auth.signOut();
+      window.location.reload();
+    });
+
+    function showDashboard() {
+      loginView.style.display = 'none';
+      dashboardView.style.display = 'block';
+      loadCodes();
+    }
+
+    // --- TABS ---
+    const tabCodesBtn = document.getElementById('tabCodesBtn');
+    const tabSubmissionsBtn = document.getElementById('tabSubmissionsBtn');
+    const codesView = document.getElementById('codesView');
+    const submissionsView = document.getElementById('submissionsView');
+
+    tabCodesBtn.addEventListener('click', () => {
+      tabCodesBtn.classList.add('active');
+      tabSubmissionsBtn.classList.remove('active');
+      codesView.style.display = 'block';
+      submissionsView.style.display = 'none';
+      loadCodes();
+    });
+    tabSubmissionsBtn.addEventListener('click', () => {
+      tabSubmissionsBtn.classList.add('active');
+      tabCodesBtn.classList.remove('active');
+      submissionsView.style.display = 'block';
+      codesView.style.display = 'none';
+      loadSubmissions();
+    });
+
+    // --- KODY + QR ---
+    document.getElementById('generateBtn').addEventListener('click', async () => {
+      codesMsg.innerHTML = '<div class="msg info">Generuję kod...</div>';
+      const { data, error } = await supabase.rpc('admin_generate_code');
+      if (error) {
+        codesMsg.innerHTML = '<div class="msg error">Nie udało się wygenerować kodu.</div>';
+        return;
+      }
+      codesMsg.innerHTML = `<div class="msg success">Nowy kod: ${data}</div>`;
+      loadCodes();
+    });
+
+    async function loadCodes() {
+      const { data, error } = await supabase
+        .from('g4_codes')
+        .select('*')
+        .order('created_at', { ascending: false });
+      const grid = document.getElementById('qrGrid');
+      if (error) {
+        grid.innerHTML = '<div class="msg error">Błąd wczytywania kodów.</div>';
+        return;
+      }
+      grid.innerHTML = '';
+      data.forEach(row => {
+        const item = document.createElement('div');
+        item.className = 'qr-item';
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(row.code)}`;
+        item.innerHTML = `
+          <img src="${qrUrl}" alt="QR ${row.code}">
+          <div class="code-num">${row.code}</div>
+          <span class="badge ${row.used ? 'used' : 'unused'}">${row.used ? 'wykorzystany' : 'wolny'}</span>
+        `;
+        grid.appendChild(item);
+      });
+    }
+
+    // --- ZGŁOSZENIA ---
+    async function ensureQuestions() {
+      if (questionsCache) return questionsCache;
+      const { data } = await supabase.from('g4_questions').select('*').order('order_num');
+      questionsCache = {};
+      (data || []).forEach(q => { questionsCache[q.id] = q.text; });
+      return questionsCache;
+    }
+
+    async function loadSubmissions() {
+      const body = document.getElementById('submissionsBody');
+      document.getElementById('answersDetail').innerHTML = '';
+      const { data, error } = await supabase
+        .from('g4_answers')
+        .select('*, g4_codes(decision)')
+        .order('submitted_at', { ascending: false });
+      if (error) {
+        body.innerHTML = `<tr><td colspan="4">Błąd wczytywania zgłoszeń.</td></tr>`;
+        return;
+      }
+      body.innerHTML = '';
+      data.forEach(row => {
+        const decision = row.g4_codes ? row.g4_codes.decision : 'waiting';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${row.code}</td>
+          <td>${new Date(row.submitted_at).toLocaleString('pl-PL')}</td>
+          <td><span class="badge ${decision}">${decision}</span></td>
+          <td></td>
+        `;
+        const actionsTd = tr.querySelector('td:last-child');
+
+        const viewBtn = document.createElement('button');
+        viewBtn.textContent = 'Zobacz';
+        viewBtn.className = 'secondary';
+        viewBtn.style.width = 'auto';
+        viewBtn.style.marginRight = '6px';
+        viewBtn.addEventListener('click', () => showAnswers(row));
+
+        const qualifyBtn = document.createElement('button');
+        qualifyBtn.textContent = 'Zakwalifikuj';
+        qualifyBtn.className = 'success';
+        qualifyBtn.style.width = 'auto';
+        qualifyBtn.style.marginRight = '6px';
+        qualifyBtn.addEventListener('click', () => setDecision(row.code, 'qualified'));
+
+        const rejectBtn = document.createElement('button');
+        rejectBtn.textContent = 'Odrzuć';
+        rejectBtn.className = 'danger';
+        rejectBtn.style.width = 'auto';
+        rejectBtn.addEventListener('click', () => setDecision(row.code, 'rejected'));
+
+        actionsTd.appendChild(viewBtn);
+        actionsTd.appendChild(qualifyBtn);
+        actionsTd.appendChild(rejectBtn);
+
+        body.appendChild(tr);
+      });
+    }
+
+    async function setDecision(code, decision) {
+      const { error } = await supabase.from('g4_codes').update({ decision }).eq('code', code);
+      if (!error) loadSubmissions();
+    }
+
+    async function showAnswers(row) {
+      const qMap = await ensureQuestions();
+      const detail = document.getElementById('answersDetail');
+      let html = `<h2>Odpowiedzi - kod ${row.code}</h2>`;
+      Object.entries(row.answers).forEach(([qId, val]) => {
+        html += `<div class="q-block"><div class="q-text">${qMap[qId] || qId}</div><div>${val}</div></div>`;
+      });
+      detail.innerHTML = html;
+    }
+
+    checkSession();
+  </script>
+</body>
+</html>

@@ -25,6 +25,8 @@
   </div>
 
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="/supabase-config.js"></script>
   <script>
     const messageEl = document.getElementById('message');
     const codeInput = document.getElementById('codeInput');
@@ -44,18 +46,17 @@
         return;
       }
       showMsg('Sprawdzam kod...', 'info');
-      try {
-        const res = await fetch(`/api/codes/${code}/check`);
-        const data = await res.json();
-        if (data.valid) {
-          window.location.href = `/survey.html?code=${encodeURIComponent(code)}`;
-        } else if (data.reason === 'used') {
-          showMsg('Ten kod został już wykorzystany. Sprawdź status swojego zgłoszenia.', 'error');
-        } else {
-          showMsg('Nieprawidłowy kod dostępu.', 'error');
-        }
-      } catch (e) {
+      const { data, error } = await supabase.rpc('check_code', { code_val: code });
+      if (error) {
         showMsg('Błąd połączenia z serwerem.', 'error');
+        return;
+      }
+      if (data.valid) {
+        window.location.href = `/survey.html?code=${encodeURIComponent(code)}`;
+      } else if (data.reason === 'used') {
+        showMsg('Ten kod został już wykorzystany. Sprawdź status swojego zgłoszenia.', 'error');
+      } else {
+        showMsg('Nieprawidłowy kod dostępu.', 'error');
       }
     }
 

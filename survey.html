@@ -16,6 +16,8 @@
     <button id="submitBtn">Wyślij odpowiedzi</button>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="/supabase-config.js"></script>
   <script>
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
@@ -35,17 +37,23 @@
     }
 
     async function init() {
-      const checkRes = await fetch(`/api/codes/${code}/check`);
-      const checkData = await checkRes.json();
-      if (!checkData.valid) {
+      const { data: checkData, error: checkErr } = await supabase.rpc('check_code', { code_val: code });
+      if (checkErr || !checkData || !checkData.valid) {
         showMsg('Ten kod jest nieprawidłowy lub został już wykorzystany.', 'error');
         document.getElementById('submitBtn').disabled = true;
         return;
       }
 
-      const res = await fetch('/api/questions');
-      const data = await res.json();
-      renderQuestions(data.questions);
+      const { data: questions, error: qErr } = await supabase
+        .from('g4_questions')
+        .select('*')
+        .order('order_num', { ascending: true });
+
+      if (qErr) {
+        showMsg('Błąd wczytywania pytań.', 'error');
+        return;
+      }
+      renderQuestions(questions);
     }
 
     function renderQuestions(questions) {
@@ -89,7 +97,7 @@
         } else if (q.type === 'choice') {
           const row = document.createElement('div');
           row.className = 'choice-row';
-          q.options.forEach((opt, idx) => {
+          (q.options || []).forEach((opt) => {
             const label = document.createElement('label');
             label.className = 'choice-opt';
             const radio = document.createElement('input');
@@ -121,16 +129,14 @@
       btn.disabled = true;
       btn.textContent = 'Wysyłanie...';
       try {
-        const res = await fetch(`/api/codes/${code}/submit`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ answers })
+        const { data, error } = await supabase.rpc('submit_answers', {
+          code_val: code,
+          answers_val: answers
         });
-        const data = await res.json();
-        if (res.ok) {
+        if (!error && data && data.success) {
           window.location.href = `/status.html?code=${encodeURIComponent(code)}`;
         } else {
-          showMsg(data.error || 'Wystąpił błąd.', 'error');
+          showMsg((data && data.error) || 'Wystąpił błąd.', 'error');
           btn.disabled = false;
           btn.textContent = 'Wyślij odpowiedzi';
         }
