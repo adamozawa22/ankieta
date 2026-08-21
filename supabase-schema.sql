@@ -64,6 +64,8 @@ begin
     return jsonb_build_object('valid', false, 'reason', 'invalid');
   elsif rec.used then
     return jsonb_build_object('valid', false, 'reason', 'used');
+  elsif rec.created_at < now() - interval '5 days' then
+    return jsonb_build_object('valid', false, 'reason', 'expired');
   else
     return jsonb_build_object('valid', true);
   end if;
@@ -103,6 +105,8 @@ begin
     return jsonb_build_object('success', false, 'error', 'Nieprawidlowy kod.');
   elsif rec.used then
     return jsonb_build_object('success', false, 'error', 'Ten kod zostal juz wykorzystany.');
+  elsif rec.created_at < now() - interval '5 days' then
+    return jsonb_build_object('success', false, 'error', 'Ten kod wygasl. Popros o nowy kod dostepu.');
   end if;
 
   insert into g4_answers (code, answers) values (code_val, answers_val);
@@ -139,6 +143,37 @@ end;
 $$;
 
 grant execute on function admin_generate_code() to authenticated;
+
+-- Usuwanie wygaslych, nieuzytych kodow (starszych niz 5 dni)
+create or replace function admin_delete_expired_codes()
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  deleted_count integer;
+begin
+  if auth.role() <> 'authenticated' then
+    raise exception 'not authorized';
+  end if;
+  delete from g4_codes where used = false and created_at < now() - interval '5 days';
+  get diagnostics deleted_count = row_count;
+  return deleted_count;
+end;
+$$;
+
+grant execute on function admin_delete_expired_codes() to authenticated;
+
+-- OPCJONALNIE: automatyczne usuwanie co noc bez klikania w panelu.
+-- Wymaga wlaczenia rozszerzenia pg_cron (Supabase Dashboard -> Database -> Extensions -> pg_cron).
+-- Po wlaczeniu odkomentuj i uruchom ponizsze (raz):
+--
+-- select cron.schedule(
+--   'delete-expired-g4-codes',
+--   '0 3 * * *',
+--   $$ delete from g4_codes where used = false and created_at < now() - interval '5 days'; $$
+-- );
 
 -- Przykladowe pytania - edytuj dowolnie w Table Editor (tabela g4_questions)
 insert into g4_questions (id, order_num, text, type, options, min, max) values

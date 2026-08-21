@@ -35,6 +35,7 @@
     <!-- ZAKŁADKA: KODY -->
     <div id="codesView">
       <button id="generateBtn">➕ Wygeneruj nowy kod</button>
+      <button id="cleanupBtn" class="secondary">🗑️ Usuń wygasłe kody (starsze niż 5 dni)</button>
       <div id="codesMsg"></div>
       <div class="qr-grid" id="qrGrid"></div>
     </div>
@@ -144,6 +145,17 @@
       loadCodes();
     });
 
+    document.getElementById('cleanupBtn').addEventListener('click', async () => {
+      codesMsg.innerHTML = '<div class="msg info">Usuwam wygasłe kody...</div>';
+      const { data, error } = await sb.rpc('admin_delete_expired_codes');
+      if (error) {
+        codesMsg.innerHTML = '<div class="msg error">Nie udało się usunąć wygasłych kodów.</div>';
+        return;
+      }
+      codesMsg.innerHTML = `<div class="msg success">Usunięto ${data} wygasłych kodów.</div>`;
+      loadCodes();
+    });
+
     async function loadCodes() {
       const { data, error } = await sb
         .from('g4_codes')
@@ -159,10 +171,13 @@
         const item = document.createElement('div');
         item.className = 'qr-item';
         const svgId = `barcode-${row.code}`;
+        const isExpired = !row.used && (Date.now() - new Date(row.created_at).getTime()) > 5 * 24 * 60 * 60 * 1000;
+        const statusLabel = row.used ? 'wykorzystany' : (isExpired ? 'wygasły' : 'wolny');
+        const statusClass = row.used ? 'used' : (isExpired ? 'rejected' : 'unused');
         item.innerHTML = `
           <svg id="${svgId}"></svg>
           <div class="code-num">${row.code}</div>
-          <span class="badge ${row.used ? 'used' : 'unused'}">${row.used ? 'wykorzystany' : 'wolny'}</span>
+          <span class="badge ${statusClass}">${statusLabel}</span>
           <button class="secondary print-btn" data-code="${row.code}">🖨️ Drukuj</button>
         `;
         grid.appendChild(item);
@@ -185,7 +200,7 @@
       JsBarcode(svg, code, { format: 'CODE128', width: 3, height: 100, displayValue: false, margin: 10 });
       const svgHtml = new XMLSerializer().serializeToString(svg);
 
-      const printWindow = window.open('', '_blank', 'width=420,height=320');
+      const printWindow = window.open('', '_blank', 'width=420,height=340');
       printWindow.document.write(`
         <html>
           <head>
@@ -197,11 +212,13 @@
                 font-family: monospace;
               }
               .code-text { font-size: 32px; letter-spacing: 6px; margin-top: 14px; color: #000; font-weight: 700; }
+              .expiry-text { font-size: 14px; margin-top: 10px; color: #444; font-family: sans-serif; }
             </style>
           </head>
           <body>
             ${svgHtml}
             <div class="code-text">${code}</div>
+            <div class="expiry-text">Aktywuj w ciągu 5 dni od wydania</div>
             <script>window.onload = () => setTimeout(() => window.print(), 200);<\/script>
           </body>
         </html>

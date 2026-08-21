@@ -41,6 +41,8 @@
       if (checkErr || !checkData || !checkData.valid) {
         if (checkData && checkData.reason === 'used') {
           showMsg(`Ten kod został już wykorzystany. <a href="/status.html?code=${encodeURIComponent(code)}">Sprawdź status swojego zgłoszenia</a>.`, 'info');
+        } else if (checkData && checkData.reason === 'expired') {
+          showMsg('Ten kod wygasł (ważność: 5 dni od wydania). Poproś o nowy kod dostępu.', 'error');
         } else {
           showMsg('Ten kod jest nieprawidłowy.', 'error');
         }
