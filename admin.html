@@ -145,7 +145,7 @@
     });
 
     async function loadCodes() {
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('g4_codes')
         .select('*')
         .order('created_at', { ascending: false });
@@ -202,7 +202,7 @@
           <body>
             ${svgHtml}
             <div class="code-text">${code}</div>
-            <script>window.onload = () => setTimeout(() => window.print(), 200);</script>
+            <script>window.onload = () => setTimeout(() => window.print(), 200);<\/script>
           </body>
         </html>
       `);
@@ -221,7 +221,7 @@
     async function loadSubmissions() {
       const body = document.getElementById('submissionsBody');
       document.getElementById('answersDetail').innerHTML = '';
-      const { data, error } = await supabase
+      const { data, error } = await sb
         .from('g4_answers')
         .select('*, g4_codes(decision)')
         .order('submitted_at', { ascending: false });
