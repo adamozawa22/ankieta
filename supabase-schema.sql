@@ -130,7 +130,7 @@ begin
     raise exception 'not authorized';
   end if;
   loop
-    new_code := lpad(floor(random() * 1000000)::text, 6, '0');
+    new_code := lpad(floor(random() * 1000000000)::text, 9, '0');
     exit when not exists (select 1 from g4_codes where code = new_code);
   end loop;
   insert into g4_codes (code) values (new_code);

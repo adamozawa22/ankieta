@@ -39,7 +39,11 @@
     async function init() {
       const { data: checkData, error: checkErr } = await sb.rpc('check_code', { code_val: code });
       if (checkErr || !checkData || !checkData.valid) {
-        showMsg('Ten kod jest nieprawidłowy lub został już wykorzystany.', 'error');
+        if (checkData && checkData.reason === 'used') {
+          showMsg(`Ten kod został już wykorzystany. <a href="/status.html?code=${encodeURIComponent(code)}">Sprawdź status swojego zgłoszenia</a>.`, 'info');
+        } else {
+          showMsg('Ten kod jest nieprawidłowy.', 'error');
+        }
         document.getElementById('submitBtn').disabled = true;
         return;
       }

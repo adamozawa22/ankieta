@@ -27,13 +27,17 @@ zmieniasz w jednym miejscu.
 - `supabase-config.js`
 
 ## 4. Jak to działa
-- **index.html** — skan QR / wpisanie kodu → sprawdza kod przez RPC `check_code`.
+- **index.html** — skan kodu kreskowego (CODE128) / wpisanie 9-cyfrowego kodu →
+  sprawdza kod przez RPC `check_code`. Jeśli kod jest już wykorzystany, pokazuje link
+  do `status.html`.
 - **survey.html** — pyta o pytania z tabeli `g4_questions`, wysyła przez RPC `submit_answers`
   (zapisuje odpowiedź + oznacza kod jako wykorzystany w jednej transakcji).
 - **status.html** — odpytuje RPC `get_status` co 4s, aż admin ustawi decyzję.
-- **admin.html** — logowanie Supabase Auth → generowanie kodów (RPC `admin_generate_code`,
-  QR generowany za darmo przez api.qrserver.com, bez żadnego klucza) + podgląd zgłoszeń
-  i przyciski Zakwalifikuj/Odrzuć.
+- **admin.html** — logowanie Supabase Auth → generowanie 9-cyfrowych kodów (RPC
+  `admin_generate_code`) + kod kreskowy generowany za darmo w przeglądarce (biblioteka
+  JsBarcode, bez zewnętrznego API) + przycisk "Drukuj" otwierający okno z kodem
+  kreskowym i cyframi na białym tle, gotowe do wydruku + podgląd zgłoszeń i przyciski
+  Zakwalifikuj/Odrzuć.
 
 ## 5. Edycja pytań
 Wejdź do Supabase → **Table Editor → g4_questions** i edytuj wiersze bezpośrednio —

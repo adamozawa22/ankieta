@@ -9,16 +9,16 @@
 <body>
   <div class="card">
     <h1>Ankieta kwalifikacyjna G4</h1>
-    <p class="subtitle">Zeskanuj kod QR ze swojego kodu dostępu albo wpisz kod ręcznie poniżej.</p>
+    <p class="subtitle">Zeskanuj kod kreskowy ze swojej karty dostępu albo wpisz kod ręcznie poniżej.</p>
 
-    <button id="startScanBtn">📷 Skanuj kod QR</button>
+    <button id="startScanBtn">📷 Skanuj kod kreskowy</button>
     <div id="qr-reader" style="display:none;"></div>
     <button id="stopScanBtn" class="secondary" style="display:none;">Zatrzymaj skanowanie</button>
 
     <div class="divider">albo</div>
 
-    <label for="codeInput">Nie masz kamery? Wpisz kod ręcznie (6 cyfr)</label>
-    <input type="text" id="codeInput" placeholder="np. 482913" inputmode="numeric" maxlength="6">
+    <label for="codeInput">Nie masz kamery? Wpisz kod ręcznie (9 cyfr)</label>
+    <input type="text" id="codeInput" placeholder="np. 482913579" inputmode="numeric" maxlength="9">
     <button id="submitCodeBtn">Otwórz ankietę</button>
 
     <div id="message"></div>
@@ -41,8 +41,8 @@
 
     async function goToSurvey(code) {
       code = (code || '').trim();
-      if (!/^\d{4,8}$/.test(code)) {
-        showMsg('Kod powinien składać się z cyfr.', 'error');
+      if (!/^\d{9}$/.test(code)) {
+        showMsg('Kod powinien składać się z 9 cyfr.', 'error');
         return;
       }
       showMsg('Sprawdzam kod...', 'info');
@@ -54,7 +54,7 @@
       if (data.valid) {
         window.location.href = `/survey.html?code=${encodeURIComponent(code)}`;
       } else if (data.reason === 'used') {
-        showMsg('Ten kod został już wykorzystany. Sprawdź status swojego zgłoszenia.', 'error');
+        showMsg(`Ten kod został już wykorzystany. <a href="/status.html?code=${encodeURIComponent(code)}">Sprawdź status swojego zgłoszenia</a>.`, 'info');
       } else {
         showMsg('Nieprawidłowy kod dostępu.', 'error');
       }
@@ -71,11 +71,14 @@
       readerDiv.style.display = 'block';
       startBtn.style.display = 'none';
       stopBtn.style.display = 'block';
-      html5QrCode = new Html5Qrcode("qr-reader");
+      html5QrCode = new Html5Qrcode("qr-reader", {
+        formatsToSupport: [ Html5QrcodeSupportedFormats.CODE_128 ],
+        verbose: false
+      });
       try {
         await html5QrCode.start(
           { facingMode: "environment" },
-          { fps: 10, qrbox: 220 },
+          { fps: 10, qrbox: { width: 280, height: 120 } },
           (decodedText) => {
             html5QrCode.stop().then(() => {
               readerDiv.style.display = 'none';

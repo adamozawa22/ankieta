@@ -52,6 +52,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
   <script src="/supabase-config.js"></script>
   <script>
     const loginView = document.getElementById('loginView');
@@ -157,14 +158,55 @@
       data.forEach(row => {
         const item = document.createElement('div');
         item.className = 'qr-item';
-        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(row.code)}`;
+        const svgId = `barcode-${row.code}`;
         item.innerHTML = `
-          <img src="${qrUrl}" alt="QR ${row.code}">
+          <svg id="${svgId}"></svg>
           <div class="code-num">${row.code}</div>
           <span class="badge ${row.used ? 'used' : 'unused'}">${row.used ? 'wykorzystany' : 'wolny'}</span>
+          <button class="secondary print-btn" data-code="${row.code}">🖨️ Drukuj</button>
         `;
         grid.appendChild(item);
+        JsBarcode(`#${svgId}`, row.code, {
+          format: 'CODE128',
+          width: 1.8,
+          height: 55,
+          displayValue: false,
+          margin: 6
+        });
       });
+      grid.querySelectorAll('.print-btn').forEach(btn => {
+        btn.addEventListener('click', () => printCode(btn.dataset.code));
+      });
+    }
+
+    function printCode(code) {
+      const svgNS = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(svgNS, 'svg');
+      JsBarcode(svg, code, { format: 'CODE128', width: 3, height: 100, displayValue: false, margin: 10 });
+      const svgHtml = new XMLSerializer().serializeToString(svg);
+
+      const printWindow = window.open('', '_blank', 'width=420,height=320');
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Kod ${code}</title>
+            <style>
+              body {
+                background: #fff; margin: 0; height: 100vh;
+                display: flex; flex-direction: column; align-items: center; justify-content: center;
+                font-family: monospace;
+              }
+              .code-text { font-size: 32px; letter-spacing: 6px; margin-top: 14px; color: #000; font-weight: 700; }
+            </style>
+          </head>
+          <body>
+            ${svgHtml}
+            <div class="code-text">${code}</div>
+            <script>window.onload = () => setTimeout(() => window.print(), 200);</script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
     }
 
     // --- ZGŁOSZENIA ---
