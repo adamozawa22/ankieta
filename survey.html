@@ -50,7 +50,7 @@
         return;
       }
 
-      const { data: questions, error: qErr } = await supabase
+      const { data: questions, error: qErr } = await sb
         .from('g4_questions')
         .select('*')
         .order('order_num', { ascending: true });
