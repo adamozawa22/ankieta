@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Status zgłoszenia</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="card center">
+    <h1>Twoje zgłoszenie</h1>
+    <p class="subtitle">Poniżej znajduje się status Twojej ankiety.</p>
+    <div id="content"></div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const content = document.getElementById('content');
+
+    async function poll() {
+      if (!code) {
+        content.innerHTML = '<div class="msg error">Brak kodu w adresie.</div>';
+        return;
+      }
+      try {
+        const res = await fetch(`/api/status/${code}`);
+        if (!res.ok) {
+          content.innerHTML = '<div class="msg error">Nie znaleziono zgłoszenia dla tego kodu.</div>';
+          return;
+        }
+        const data = await res.json();
+        render(data.decision);
+        if (data.decision === 'waiting') {
+          setTimeout(poll, 4000);
+        }
+      } catch (e) {
+        content.innerHTML = '<div class="msg error">Błąd połączenia z serwerem.</div>';
+        setTimeout(poll, 5000);
+      }
+    }
+
+    function render(decision) {
+      if (decision === 'waiting') {
+        content.innerHTML = `
+          <div class="spinner"></div>
+          <div class="msg info">Twoje odpowiedzi zostały zapisane. Oczekuj na decyzję — strona odświeży się automatycznie.</div>
+        `;
+      } else if (decision === 'qualified') {
+        content.innerHTML = `<div class="msg success">🎉 Gratulacje! Kwalifikujesz się do grupy G4.</div>`;
+      } else if (decision === 'rejected') {
+        content.innerHTML = `<div class="msg error">Niestety, tym razem się nie zakwalifikowałeś/aś.</div>`;
+      }
+    }
+
+    poll();
+  </script>
+</body>
+</html>

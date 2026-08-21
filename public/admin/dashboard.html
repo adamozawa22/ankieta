@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel admina G4</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="card wide">
+    <div class="top-bar">
+      <h1>Panel admina G4</h1>
+      <button id="logoutBtn" class="secondary">Wyloguj</button>
+    </div>
+
+    <div class="tabs">
+      <button id="tabCodes" class="active">Kody dostępu</button>
+      <button id="tabSubmissions">Zgłoszenia</button>
+    </div>
+
+    <div id="codesView">
+      <h2>Wygeneruj nowe kody jednorazowe</h2>
+      <label for="count">Ile kodów wygenerować?</label>
+      <input type="number" id="count" min="1" max="200" value="10">
+      <label for="label">Etykieta (opcjonalnie, np. "Nabór wrzesień")</label>
+      <input type="text" id="label" placeholder="np. nabor-1">
+      <button id="generateBtn">Generuj kody + QR</button>
+      <div id="genMessage"></div>
+
+      <h2>Wszystkie kody</h2>
+      <div id="codesList" class="qr-grid"></div>
+    </div>
+
+    <div id="submissionsView" style="display:none;">
+      <h2>Zgłoszenia oczekujące i rozpatrzone</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Kod</th>
+            <th>Etykieta</th>
+            <th>Wynik</th>
+            <th>Sugestia</th>
+            <th>Data</th>
+            <th>Decyzja</th>
+            <th>Akcje</th>
+          </tr>
+        </thead>
+        <tbody id="submissionsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // --- auth guard ---
+    (async function guard() {
+      const res = await fetch('/api/admin/me');
+      const data = await res.json();
+      if (!data.isAdmin) window.location.href = '/admin/login.html';
+    })();
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await fetch('/api/admin/logout', { method: 'POST' });
+      window.location.href = '/admin/login.html';
+    });
+
+    // --- tabs ---
+    const tabCodes = document.getElementById('tabCodes');
+    const tabSubmissions = document.getElementById('tabSubmissions');
+    const codesView = document.getElementById('codesView');
+    const submissionsView = document.getElementById('submissionsView');
+
+    tabCodes.addEventListener('click', () => {
+      tabCodes.classList.add('active'); tabSubmissions.classList.remove('active');
+      codesView.style.display = 'block'; submissionsView.style.display = 'none';
+      loadCodes();
+    });
+    tabSubmissions.addEventListener('click', () => {
+      tabSubmissions.classList.add('active'); tabCodes.classList.remove('active');
+      submissionsView.style.display = 'block'; codesView.style.display = 'none';
+      loadSubmissions();
+    });
+
+    // --- codes ---
+    document.getElementById('generateBtn').addEventListener('click', async () => {
+      const count = document.getElementById('count').value;
+      const label = document.getElementById('label').value;
+      const genMsg = document.getElementById('genMessage');
+      genMsg.innerHTML = '<div class="msg info">Generuję kody...</div>';
+      const res = await fetch('/api/admin/codes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count, label })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        genMsg.innerHTML = `<div class="msg success">Wygenerowano ${data.created.length} kodów.</div>`;
+        loadCodes();
+      } else {
+        genMsg.innerHTML = `<div class="msg error">${data.error || 'Błąd generowania.'}</div>`;
+      }
+    });
+
+    async function loadCodes() {
+      const res = await fetch('/api/admin/codes');
+      const data = await res.json();
+      const list = document.getElementById('codesList');
+      list.innerHTML = '';
+      data.codes.forEach(c => {
+        const item = document.createElement('div');
+        item.className = 'qr-item';
+        item.innerHTML = `
+          <img src="/qrcodes/${c.code}.png" alt="QR ${c.code}">
+          <div class="code-num">${c.code}</div>
+          <div>${c.label ? c.label : ''}</div>
+          <span class="badge ${c.status}">${c.status === 'used' ? 'użyty' : 'wolny'}</span>
+        `;
+        list.appendChild(item);
+      });
+    }
+
+    // --- submissions ---
+    async function loadSubmissions() {
+      const res = await fetch('/api/admin/submissions');
+      const data = await res.json();
+      const body = document.getElementById('submissionsBody');
+      body.innerHTML = '';
+      data.submissions.forEach(s => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${s.code}</td>
+          <td>${s.label || ''}</td>
+          <td>${s.score}</td>
+          <td><span class="badge ${s.suggestion}">${labelFor(s.suggestion)}</span></td>
+          <td>${new Date(s.submitted_at).toLocaleString('pl-PL')}</td>
+          <td><span class="badge ${s.decision}" id="decision-${s.id}">${labelFor(s.decision)}</span></td>
+          <td>
+            <button class="success" style="width:auto;padding:6px 10px;font-size:12px;margin:0 4px 0 0;" onclick="decide(${s.id}, 'qualified')">Zakwalifikuj</button>
+            <button class="danger" style="width:auto;padding:6px 10px;font-size:12px;margin:0;" onclick="decide(${s.id}, 'rejected')">Odrzuć</button>
+          </td>
+        `;
+        body.appendChild(tr);
+        tr.addEventListener('click', (e) => {
+          if (e.target.tagName === 'BUTTON') return;
+          alert('Odpowiedzi:\\n' + Object.entries(s.answers).map(([k,v]) => `${k}: ${v}`).join('\\n'));
+        });
+      });
+    }
+
+    function labelFor(v) {
+      if (v === 'waiting') return 'oczekuje';
+      if (v === 'qualified') return 'zakwalifikowany';
+      if (v === 'rejected') return 'odrzucony';
+      return v;
+    }
+
+    async function decide(id, decision) {
+      await fetch(`/api/admin/submissions/${id}/decision`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision })
+      });
+      loadSubmissions();
+    }
+
+    loadCodes();
+  </script>
+</body>
+</html>

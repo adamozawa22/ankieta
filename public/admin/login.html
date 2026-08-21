@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel admina - logowanie</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="card">
+    <h1>Panel admina G4</h1>
+    <p class="subtitle">Zaloguj się, aby zarządzać kodami i zgłoszeniami.</p>
+
+    <label for="username">Login</label>
+    <input type="text" id="username" autocomplete="username">
+
+    <label for="password">Hasło</label>
+    <input type="password" id="password" autocomplete="current-password">
+
+    <button id="loginBtn">Zaloguj</button>
+    <div id="message"></div>
+  </div>
+
+  <script>
+    const messageEl = document.getElementById('message');
+    document.getElementById('loginBtn').addEventListener('click', async () => {
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      if (res.ok) {
+        window.location.href = '/admin/dashboard.html';
+      } else {
+        messageEl.innerHTML = '<div class="msg error">Nieprawidłowy login lub hasło.</div>';
+      }
+    });
+    document.getElementById('password').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('loginBtn').click();
+    });
+  </script>
+</body>
+</html>

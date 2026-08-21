@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dostęp do ankiety G4</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="card">
+    <h1>Ankieta kwalifikacyjna G4</h1>
+    <p class="subtitle">Zeskanuj kod QR ze swojego kodu dostępu albo wpisz kod ręcznie poniżej.</p>
+
+    <button id="startScanBtn">📷 Skanuj kod QR</button>
+    <div id="qr-reader" style="display:none;"></div>
+    <button id="stopScanBtn" class="secondary" style="display:none;">Zatrzymaj skanowanie</button>
+
+    <div class="divider">albo</div>
+
+    <label for="codeInput">Nie masz kamery? Wpisz kod ręcznie (6 cyfr)</label>
+    <input type="text" id="codeInput" placeholder="np. 482913" inputmode="numeric" maxlength="6">
+    <button id="submitCodeBtn">Otwórz ankietę</button>
+
+    <div id="message"></div>
+  </div>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script>
+    const messageEl = document.getElementById('message');
+    const codeInput = document.getElementById('codeInput');
+    const startBtn = document.getElementById('startScanBtn');
+    const stopBtn = document.getElementById('stopScanBtn');
+    const readerDiv = document.getElementById('qr-reader');
+    let html5QrCode = null;
+
+    function showMsg(text, type) {
+      messageEl.innerHTML = `<div class="msg ${type}">${text}</div>`;
+    }
+
+    async function goToSurvey(code) {
+      code = (code || '').trim();
+      if (!/^\d{4,8}$/.test(code)) {
+        showMsg('Kod powinien składać się z cyfr.', 'error');
+        return;
+      }
+      showMsg('Sprawdzam kod...', 'info');
+      try {
+        const res = await fetch(`/api/codes/${code}/check`);
+        const data = await res.json();
+        if (data.valid) {
+          window.location.href = `/survey.html?code=${encodeURIComponent(code)}`;
+        } else if (data.reason === 'used') {
+          showMsg('Ten kod został już wykorzystany. Sprawdź status swojego zgłoszenia.', 'error');
+        } else {
+          showMsg('Nieprawidłowy kod dostępu.', 'error');
+        }
+      } catch (e) {
+        showMsg('Błąd połączenia z serwerem.', 'error');
+      }
+    }
+
+    document.getElementById('submitCodeBtn').addEventListener('click', () => {
+      goToSurvey(codeInput.value);
+    });
+    codeInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') goToSurvey(codeInput.value);
+    });
+
+    startBtn.addEventListener('click', async () => {
+      readerDiv.style.display = 'block';
+      startBtn.style.display = 'none';
+      stopBtn.style.display = 'block';
+      html5QrCode = new Html5Qrcode("qr-reader");
+      try {
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          { fps: 10, qrbox: 220 },
+          (decodedText) => {
+            html5QrCode.stop().then(() => {
+              readerDiv.style.display = 'none';
+              stopBtn.style.display = 'none';
+              startBtn.style.display = 'block';
+              goToSurvey(decodedText);
+            });
+          },
+          () => {}
+        );
+      } catch (err) {
+        showMsg('Nie udało się uzyskać dostępu do kamery. Wpisz kod ręcznie poniżej.', 'error');
+        readerDiv.style.display = 'none';
+        stopBtn.style.display = 'none';
+        startBtn.style.display = 'block';
+      }
+    });
+
+    stopBtn.addEventListener('click', async () => {
+      if (html5QrCode) { try { await html5QrCode.stop(); } catch(e){} }
+      readerDiv.style.display = 'none';
+      stopBtn.style.display = 'none';
+      startBtn.style.display = 'block';
+    });
+  </script>
+</body>
+</html>

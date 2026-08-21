@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ankieta G4</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="card">
+    <h1>Ankieta kwalifikacyjna G4</h1>
+    <p class="subtitle">Odpowiedz na poniższe pytania. Ankietę można wypełnić tylko raz.</p>
+
+    <div id="questionsContainer"></div>
+    <div id="message"></div>
+    <button id="submitBtn">Wyślij odpowiedzi</button>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const messageEl = document.getElementById('message');
+    const container = document.getElementById('questionsContainer');
+    const answers = {};
+
+    function showMsg(text, type) {
+      messageEl.innerHTML = `<div class="msg ${type}">${text}</div>`;
+    }
+
+    if (!code) {
+      showMsg('Brak kodu dostępu. Wróć do strony głównej.', 'error');
+      document.getElementById('submitBtn').disabled = true;
+    } else {
+      init();
+    }
+
+    async function init() {
+      const checkRes = await fetch(`/api/codes/${code}/check`);
+      const checkData = await checkRes.json();
+      if (!checkData.valid) {
+        showMsg('Ten kod jest nieprawidłowy lub został już wykorzystany.', 'error');
+        document.getElementById('submitBtn').disabled = true;
+        return;
+      }
+
+      const res = await fetch('/api/questions');
+      const data = await res.json();
+      renderQuestions(data.questions);
+    }
+
+    function renderQuestions(questions) {
+      container.innerHTML = '';
+      questions.forEach(q => {
+        const block = document.createElement('div');
+        block.className = 'q-block';
+        const title = document.createElement('div');
+        title.className = 'q-text';
+        title.textContent = q.text;
+        block.appendChild(title);
+
+        if (q.type === 'yesno') {
+          const row = document.createElement('div');
+          row.className = 'yesno-row';
+          const yesBtn = document.createElement('button');
+          yesBtn.textContent = 'Tak';
+          yesBtn.type = 'button';
+          yesBtn.className = 'yes';
+          const noBtn = document.createElement('button');
+          noBtn.textContent = 'Nie';
+          noBtn.type = 'button';
+          noBtn.className = 'no';
+          yesBtn.addEventListener('click', () => {
+            answers[q.id] = true;
+            yesBtn.classList.add('active'); noBtn.classList.remove('active');
+          });
+          noBtn.addEventListener('click', () => {
+            answers[q.id] = false;
+            noBtn.classList.add('active'); yesBtn.classList.remove('active');
+          });
+          row.appendChild(yesBtn); row.appendChild(noBtn);
+          block.appendChild(row);
+        } else if (q.type === 'scale') {
+          const input = document.createElement('input');
+          input.type = 'number';
+          input.min = q.min; input.max = q.max;
+          input.placeholder = `${q.min} - ${q.max}`;
+          input.addEventListener('input', () => { answers[q.id] = Number(input.value); });
+          block.appendChild(input);
+        } else if (q.type === 'choice') {
+          const row = document.createElement('div');
+          row.className = 'choice-row';
+          q.options.forEach((opt, idx) => {
+            const label = document.createElement('label');
+            label.className = 'choice-opt';
+            const radio = document.createElement('input');
+            radio.type = 'radio';
+            radio.name = q.id;
+            radio.value = opt.label;
+            radio.addEventListener('change', () => {
+              answers[q.id] = opt.label;
+              row.querySelectorAll('.choice-opt').forEach(el => el.classList.remove('selected'));
+              label.classList.add('selected');
+            });
+            label.appendChild(radio);
+            label.appendChild(document.createTextNode(opt.label));
+            row.appendChild(label);
+          });
+          block.appendChild(row);
+        } else if (q.type === 'text') {
+          const textarea = document.createElement('textarea');
+          textarea.addEventListener('input', () => { answers[q.id] = textarea.value; });
+          block.appendChild(textarea);
+        }
+
+        container.appendChild(block);
+      });
+    }
+
+    document.getElementById('submitBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.textContent = 'Wysyłanie...';
+      try {
+        const res = await fetch(`/api/codes/${code}/submit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ answers })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          window.location.href = `/status.html?code=${encodeURIComponent(code)}`;
+        } else {
+          showMsg(data.error || 'Wystąpił błąd.', 'error');
+          btn.disabled = false;
+          btn.textContent = 'Wyślij odpowiedzi';
+        }
+      } catch (e) {
+        showMsg('Błąd połączenia z serwerem.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Wyślij odpowiedzi';
+      }
+    });
+  </script>
+</body>
+</html>
