@@ -46,7 +46,7 @@
         return;
       }
       showMsg('Sprawdzam kod...', 'info');
-      const { data, error } = await supabase.rpc('check_code', { code_val: code });
+      const { data, error } = await sb.rpc('check_code', { code_val: code });
       if (error) {
         showMsg('Błąd połączenia z serwerem.', 'error');
         return;

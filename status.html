@@ -25,7 +25,7 @@
         content.innerHTML = '<div class="msg error">Brak kodu w adresie.</div>';
         return;
       }
-      const { data, error } = await supabase.rpc('get_status', { code_val: code });
+      const { data, error } = await sb.rpc('get_status', { code_val: code });
       if (error) {
         content.innerHTML = '<div class="msg error">Błąd połączenia z serwerem.</div>';
         setTimeout(poll, 5000);

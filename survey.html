@@ -37,7 +37,7 @@
     }
 
     async function init() {
-      const { data: checkData, error: checkErr } = await supabase.rpc('check_code', { code_val: code });
+      const { data: checkData, error: checkErr } = await sb.rpc('check_code', { code_val: code });
       if (checkErr || !checkData || !checkData.valid) {
         showMsg('Ten kod jest nieprawidłowy lub został już wykorzystany.', 'error');
         document.getElementById('submitBtn').disabled = true;
@@ -129,7 +129,7 @@
       btn.disabled = true;
       btn.textContent = 'Wysyłanie...';
       try {
-        const { data, error } = await supabase.rpc('submit_answers', {
+        const { data, error } = await sb.rpc('submit_answers', {
           code_val: code,
           answers_val: answers
         });
